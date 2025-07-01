@@ -1,0 +1,102 @@
+import torch
+import triton
+import triton.language as tl
+import math
+
+"""
+CUDA_VISIBLE_DEVICES=1 TRITON_PRINT_AUTOTUNING=1 python3 flash.py
+"""
+
+
+def get_cuda_autotune_config():
+    return [
+        triton.Config({'Br': 32, 'Bc': 32}, num_stages=4, num_warps=8),
+    ]
+@triton.autotune(
+    configs=get_cuda_autotune_config(),
+    key=['seqlen', 'hdim'],
+)
+@triton.jit
+def attention_triton(
+    Q_start_ptr, K_start_ptr, V_start_ptr, 
+    O_start_ptr, L_start_ptr, M_start_ptr,
+    N_const, H_const, D_const, softmax_score,
+    B_stride, N_stride, H_stride,
+    lm_batch_stride, lm_heads_stride,
+    Br : tl.constexpr, Bc : tl.constexpr):
+
+    batch_id = tl.program_id(0)
+    head_id = tl.program_id(1)
+    Tr_i = tl.program_id(2)
+
+    # point to (batch_id, 0, head_id, 0)
+    Q_ptr = Q_start_ptr + batch_id * B_stride + head_id * H_stride
+    K_ptr = K_start_ptr + batch_id * B_stride + head_id * H_stride
+    V_ptr = V_start_ptr + batch_id * B_stride + head_id * H_stride
+    O_ptr = O_start_ptr + batch_id * B_stride + head_id * H_stride
+
+    L_ptr = L_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
+    M_ptr = M_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
+
+
+    O_block_ptr = tl.make_block_ptr(
+        base = O_ptr,
+        shape = (N_const, D_const),
+        strides = (N_stride, 1),
+        offsets = (0, 0),
+        block_shape = (Br, D_const),
+    )
+
+    L_chunk_ptr = tl.make_block_ptr(
+        base = L_ptr,
+        
+
+    Q_block_ptr = tl.make_block_ptr(
+        base = Q_ptr,
+        shape = (N_const, D_const),
+        strides = (N_stride, 1), # we can assume stride for d is 1 because we called contiguous() before
+        offsets = (0, 0), 
+        block_shape = (Br, D_const),
+        order = (1, 0)
+    )
+
+
+
+
+
+
+    Q = 
+
+    
+
+
+
+def attention_triton_launch(QKV):
+    QKV = QKV.to(torch.float32)
+    Q_tensor, K_tensor, V_tensor = QKV.unbind(dim=2)
+    Q_tensor_cont, K_tensor_cont, V_tensor_cont = Q_tensor.contiguous(), K_tensor.contiguous(), V_tensor.contiguous()
+
+
+    B_const, N_const, H_const, D_const = Q_tensor_cont.shape
+    O_tensor = torch.zeros((B_const, N_const, H_const, D_const), dtype=QKV.dtype, device=QKV.device)
+    L_tensor = torch.zeros((B_const, H_const, N_const), dtype=QKV.dtype, device=QKV.device)
+    M_tensor = torch.ones((B_const, H_const, N_const), dtype=QKV.dtype, device=QKV.device) * float("-inf")
+
+    softmax_score = 1 / math.sqrt(N_const)
+
+    B_stride, N_stride, H_stride, _ = Q_tensor_cont.stride()
+    lm_batch_stride, lm_heads_stride, _ = M_tensor.stride()
+    
+    def grid(META):
+        Tr = triton.cdiv(N_const, META['Br'])
+        return (B_const, H_const, Tr)
+    attention_triton[grid](
+        Q_tensor_cont, K_tensor_cont, V_tensor_cont, 
+        O_tensor, L_tensor, M_tensor,
+        N_const, H_const, D_const, softmax_score,
+        B_stride, N_stride, H_stride,
+        lm_batch_stride, lm_heads_stride,
+    )
+    
+    return O_tensor.to(QKV.dtype)
+    
