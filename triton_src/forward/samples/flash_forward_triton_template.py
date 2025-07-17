@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=1 TRITON_PRINT_AUTOTUNING=1 python3 flash.py
 
 def get_cuda_autotune_config():
     return [
-        triton.Config({'Br': 32, 'Bc': 32}, num_stages=4, num_warps=8),
+        triton.Config({'Br': 16, 'Bc': 16}, num_stages=4, num_warps=8),
     ]
 @triton.autotune(
     configs=get_cuda_autotune_config(),
@@ -38,7 +38,26 @@ def attention_triton(
     L_ptr = L_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
     M_ptr = M_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
 
+    Q_block_ptr = tl.make_block_ptr(
+        base = Q_ptr, shape = (N_const, D_const), strides = (N_stride, 1),
+        offsets = (0, 0), block_shape = (Br, D_const), order = (1, 0)
+    )
+    K_block_ptr = tl.make_block_ptr(
+        base = K_ptr, shape = (N_const, D_const), strides = (N_stride, 1),
+        offsets = (0, 0), block_shape = (Bc, D_const), order = (1, 0)
+    )
+    V_block_ptr = tl.make_block_ptr(
+        base = V_ptr, shape = (N_const, D_const), strides = (N_stride, 1),
+        offsets = (0, 0), block_shape = (Bc, D_const), order = (1, 0)
+    )
     
+    O_block_ptr = tl.make_block_ptr(
+        base = O_ptr, shape = (N_const, D_const), strides = (N_stride, 1),
+        offsets = (0, 0), block_shape = (Br, D_const), order = (1, 0)
+    )
+    
+    
+
 
 
 

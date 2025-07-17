@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=1 TRITON_PRINT_AUTOTUNING=1 python3 flash.py
 
 def get_cuda_autotune_config():
     return [
-        triton.Config({'Br': 32, 'Bc': 32}, num_stages=4, num_warps=8),
+        triton.Config({'Br': 16, 'Bc': 16}, num_stages=4, num_warps=8),
     ]
 @triton.autotune(
     configs=get_cuda_autotune_config(),
@@ -156,4 +156,4 @@ def attention_triton_launch(qkv):
         batch_stride, seqlen_stride, nheads_stride,
     )
 
-    return output.to(torch.bfloat16)
+    return output.to(torch.float32)
