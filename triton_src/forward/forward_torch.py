@@ -40,7 +40,10 @@ def naive_forward_aux(Q, K, V, softmax_scale):
     O = torch.einsum("b h t s, b s h d -> b t h d", P, V)
 
     M, _ = torch.max(S, dim=-1)
-    L = torch.sum(torch.exp(S - M[:, :, :, None]), dim = -1)
+
+    # the first is strictly correct, but the second is what flash 2 actually uses
+    # L = torch.sum(torch.exp(S - M[:, :, :, None]), dim = -1)
+    L = torch.log(torch.sum(torch.exp(S), dim = -1))
 
 
     return S, P, O, L, M

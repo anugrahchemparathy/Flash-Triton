@@ -36,17 +36,6 @@ def attention_triton(
     K_ptr = K_start_ptr + batch_id * B_stride + head_id * H_stride
     V_ptr = V_start_ptr + batch_id * B_stride + head_id * H_stride
 
-    L_ptr = L_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
-    M_ptr = M_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
-
-    # L_chunk_ptr = tl.make_block_ptr(
-    #     base = L_ptr, shape = (N_const,), strides = (1,), offsets = (Tr_i * Br,), block_shape = (Br,), order = (0,)
-    # )
-    # M_chunk_ptr = tl.make_block_ptr(
-    #     base = M_ptr, shape = (N_const,), strides = (1,), offsets = (Tr_i * Br,), block_shape = (Br,), order = (0,)
-    # )
-
-
     Q_block_ptr = tl.make_block_ptr(
         base = Q_ptr, shape = (N_const, D_const), strides = (N_stride, 1), 
         offsets = (Tr_i * Br, 0), block_shape = (Br, D_const), order = (1, 0)
@@ -65,7 +54,7 @@ def attention_triton(
         offsets = (0, 0), block_shape = (Bc, D_const), order = (1, 0)
     )
 
-    Qi = tl.load(Q_block_ptr, boundary_check=(0,1), padding_option = "zero")
+    Qi = tl.load(Q_block_ptr, boundary_check=(0,), padding_option = "zero")
     Oi = tl.zeros((Br, D_const), dtype=tl.float32)
     li = tl.zeros((Br,), dtype=tl.float32)
     mi = tl.full((Br,), float('-inf'), dtype=tl.float32)
@@ -75,7 +64,7 @@ def attention_triton(
         Tc_indexes = Tc_j * Bc + tl.arange(0, Bc)
         Tc_mask = Tc_indexes < N_const
         
-        Kj = tl.load(K_block_ptr, boundary_check=(0,1), padding_option = "zero")
+        Kj = tl.load(K_block_ptr, boundary_check=(0,), padding_option = "zero")
         Sij = tl.dot(Qi, tl.trans(Kj)) * softmax_scale
         mij = tl.max(Sij, axis=1)
         mi_new = tl.maximum(mi, mij)
@@ -85,7 +74,7 @@ def attention_triton(
 
 
         # update Oi
-        Vj = tl.load(V_block_ptr, boundary_check=(0,1), padding_option = "zero")
+        Vj = tl.load(V_block_ptr, boundary_check=(0,), padding_option = "zero")
         Oi = tl.exp(mi - mi_new)[:, None] * Oi + tl.dot(Pij, Vj)
 
 
@@ -98,7 +87,20 @@ def attention_triton(
     
 
     Oi = Oi * (1 / li)[:, None]
-    tl.store(O_block_ptr, Oi, boundary_check = (0,1))
+    tl.store(O_block_ptr, Oi, boundary_check = (0,))
+
+
+    L_ptr = L_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
+    L_chunk_ptr = tl.make_block_ptr(
+        base = L_ptr, shape = (N_const,), strides = (1,), offsets = (Tr_i * Br,), block_shape = (Br,), order = (0,)
+    )
+    Li = tl.log(li) + mi
+    tl.store(L_chunk_ptr, Li, boundary_check = (0,))
+
+    # M_ptr = M_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
+    # M_chunk_ptr = tl.make_block_ptr(
+    #     base = M_ptr, shape = (N_const,), strides = (1,), offsets = (Tr_i * Br,), block_shape = (Br,), order = (0,)
+    # )
 
 
 
@@ -137,5 +139,5 @@ def attention_triton_launch(QKV):
         lm_batch_stride, lm_heads_stride,
     )
     
-    return O_tensor.to(QKV.dtype)
+    return O_tensor.to(QKV.dtype), L_tensor.to(QKV.dtype)
     
