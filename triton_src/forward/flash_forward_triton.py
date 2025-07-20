@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=1 TRITON_PRINT_AUTOTUNING=1 python3 flash.py
 
 def get_cuda_autotune_config():
     return [
-        triton.Config({'Br': 16, 'Bc': 16}, num_stages=4, num_warps=8),
+        triton.Config({'Br': 32, 'Bc': 64}, num_stages=4, num_warps=8),
     ]
 @triton.autotune(
     configs=get_cuda_autotune_config(),
@@ -65,24 +65,27 @@ def attention_triton(
         offsets = (0, 0), block_shape = (Bc, D_const), order = (1, 0)
     )
 
-    Qi = tl.load(Q_block_ptr)
+    Qi = tl.load(Q_block_ptr, boundary_check=(0,1), padding_option = "zero")
     Oi = tl.zeros((Br, D_const), dtype=tl.float32)
     li = tl.zeros((Br,), dtype=tl.float32)
     mi = tl.full((Br,), float('-inf'), dtype=tl.float32)
 
     Tc = tl.cdiv(N_const, Bc)
     for Tc_j in range(0, Tc):
-        Kj = tl.load(K_block_ptr)
+        Tc_indexes = Tc_j * Bc + tl.arange(0, Bc)
+        Tc_mask = Tc_indexes < N_const
+        
+        Kj = tl.load(K_block_ptr, boundary_check=(0,1), padding_option = "zero")
         Sij = tl.dot(Qi, tl.trans(Kj)) * softmax_scale
         mij = tl.max(Sij, axis=1)
         mi_new = tl.maximum(mi, mij)
 
-        Pij = tl.exp(Sij - mi_new[:, None])
+        Pij = tl.exp(Sij - mi_new[:, None]) * Tc_mask[None, :]
         li = tl.exp(mi - mi_new) * li + tl.sum(Pij, axis=1)
 
 
         # update Oi
-        Vj = tl.load(V_block_ptr)
+        Vj = tl.load(V_block_ptr, boundary_check=(0,1), padding_option = "zero")
         Oi = tl.exp(mi - mi_new)[:, None] * Oi + tl.dot(Pij, Vj)
 
 
@@ -95,7 +98,7 @@ def attention_triton(
     
 
     Oi = Oi * (1 / li)[:, None]
-    tl.store(O_block_ptr, Oi)
+    tl.store(O_block_ptr, Oi, boundary_check = (0,1))
 
 
 
