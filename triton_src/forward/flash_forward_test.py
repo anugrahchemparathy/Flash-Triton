@@ -12,23 +12,28 @@ def test_attention_implementations():
     torch.cuda.manual_seed(42)
 
 
-    # Test case 0: Small dimensions
+
     print("=== Test Case 0: Small dimensions ===")
     B, N, H, D = 1, 16, 1, 32
     test_attention(B, N, H, D)
 
-    # Test case 1: Small dimensions
-    print("=== Test Case 1: Small dimensions ===")
+    print("=== Test Case 1: Irregular sequence length ===")
+    B, N, H, D = 1, 18, 1, 32
+    test_attention(B, N, H, D)
+
+    print("=== Test Case 2: Irregular sequence length ===")
+    B, N, H, D = 16, 48, 64, 32
+    test_attention(B, N, H, D)
+
+    print("=== Test Case 3: Small dimensions ===")
     B, N, H, D = 2, 16, 32, 64
     test_attention(B, N, H, D)
     
-    # Test case 2: Medium dimensions
-    print("\n=== Test Case 2: Medium dimensions ===")
+    print("\n=== Test Case 4: Medium dimensions ===")
     B, N, H, D = 1, 64, 64, 256
     test_attention(B, N, H, D)
     
-    # Test case 3: Sequence length
-    print("\n=== Test Case 3: Large test ===")
+    print("\n=== Test Case 5: Large test ===")
     B, N, H, D = 128, 256, 128, 64
     test_attention(B, N, H, D)
 
