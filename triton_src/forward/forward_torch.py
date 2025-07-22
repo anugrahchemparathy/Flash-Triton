@@ -47,3 +47,13 @@ def naive_forward_aux(Q, K, V, softmax_scale):
 
 
     return S, P, O, L, M
+
+def naive_forward_aux_wrapper(QKV):
+    QKV = QKV.to(torch.float32)
+    Q, K, V = QKV.unbind(dim=2)
+    B, N, H, D = Q.shape
+    
+    # Naive implementation
+    softmax_scale = 1.0 / (D ** 0.5)
+    S_naive, P_naive, O_naive, L_naive, M_naive = naive_forward_aux(Q, K, V, softmax_scale)
+    return S_naive, P_naive, O_naive, L_naive, M_naive
