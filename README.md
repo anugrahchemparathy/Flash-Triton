@@ -35,6 +35,7 @@ TFLOPs (total) > 4 * B * H * N * N * D * 1e-12
 ## TODOs
 
 - [ ] Forward Pass
+    - [x] Add FP32 version
     - [ ] Add BF16/FP16 versions
 - [ ] Backward Pass
     - [ ] Add FP32 version
