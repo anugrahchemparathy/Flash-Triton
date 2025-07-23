@@ -6,19 +6,18 @@ This script benchmarks FlashAttention2 implementations comparing Triton vs PyTor
 
 
 # option 1: print autotuning info
-CUDA_VISIBLE_DEVICES=0 TRITON_PRINT_AUTOTUNING=1 python benchmark_script.py
+CUDA_VISIBLE_DEVICES=0 TRITON_PRINT_AUTOTUNING=1 python fwd_benchmark_script.py
 # option 2: or just run the script
-python benchmark_script.py
+python fwd_benchmark.py
 """
 
 import torch
 import triton
 import triton.language as tl
+
 import sys
 import os
-
-# # Add the forward module to the path
-# sys.path.append("/data/rbg/users/anugrah/triton/Flash-Triton/triton_src/forward")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from flash_forward_triton import attention_triton_launch
 from forward_torch import naive_forward_aux_wrapper
