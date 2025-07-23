@@ -16,10 +16,6 @@ def get_cuda_autotune_config():
         triton.Config({'Br': 64, 'Bc': 64}, num_stages=4, num_warps=8),
         triton.Config({'Br': 128, 'Bc': 64}, num_stages=4, num_warps=8),
         triton.Config({'Br': 64, 'Bc': 128}, num_stages=4, num_warps=8),
-        # triton.Config({'Br': 128, 'Bc': 128}, num_stages=4, num_warps=8),
-        # triton.Config({'Br': 256, 'Bc': 128}, num_stages=2, num_warps=8),
-        # triton.Config({'Br': 128, 'Bc': 256}, num_stages=2, num_warps=8),
-        # triton.Config({'Br': 256, 'Bc': 256}, num_stages=3, num_warps=4),
     ]
 @triton.autotune(
     configs=get_cuda_autotune_config(),
@@ -106,20 +102,6 @@ def attention_triton(
     Li = tl.log(li) + mi
     tl.store(L_chunk_ptr, Li, boundary_check = (0,))
 
-    # M_ptr = M_start_ptr + batch_id * lm_batch_stride + head_id * lm_heads_stride
-    # M_chunk_ptr = tl.make_block_ptr(
-    #     base = M_ptr, shape = (N_const,), strides = (1,), offsets = (Tr_i * Br,), block_shape = (Br,), order = (0,)
-    # )
-
-
-
-
-
-
-
-    
-
-
 
 def attention_triton_launch(QKV):
     QKV = QKV.to(torch.float32)
@@ -147,6 +129,6 @@ def attention_triton_launch(QKV):
         B_stride, N_stride, H_stride,
         lm_batch_stride, lm_heads_stride,
     )
-    
+    torch.cuda.synchronize()
     return O_tensor.to(QKV.dtype), L_tensor.to(QKV.dtype)
     
