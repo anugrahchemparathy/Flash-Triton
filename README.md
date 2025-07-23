@@ -29,3 +29,15 @@ TFLOPs (QK^T) = B * H * (N * N) * (D * 2) * 1e-12
 TFLOPs (PV) = B * H * (N * D) * (N * 2) * 1e-12
 TFLOPs (total) > 4 * B * H * N * N * D * 1e-12
 ```
+
+
+
+## TODOs
+
+- [ ] Forward Pass
+    - [ ] Add BF16/FP16 versions
+- [ ] Backward Pass
+    - [ ] Add FP32 version
+    - [ ] Add BF16/FP16 versions
+- [ ] General
+    - [ ] Train a small model with an MHA module derived from these kernels
