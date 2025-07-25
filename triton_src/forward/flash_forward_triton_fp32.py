@@ -24,8 +24,8 @@ def get_cuda_autotune_config():
 @triton.jit
 def attention_triton(
     Q_start_ptr, K_start_ptr, V_start_ptr, 
-    O_start_ptr, L_start_ptr, M_start_ptr,
-    N_const: tl.constexpr, H_const, D_const: tl.constexpr, softmax_scale,
+    O_start_ptr, L_start_ptr,
+    N_const: tl.constexpr, D_const: tl.constexpr, softmax_scale,
     B_stride, N_stride, H_stride,
     lm_batch_stride, lm_heads_stride,
     Br : tl.constexpr, Bc : tl.constexpr):
@@ -70,7 +70,7 @@ def attention_triton(
         Tc_mask = Tc_indexes < N_const
         
         Kj = tl.load(K_block_ptr, boundary_check=(0,), padding_option = "zero")
-        Sij = tl.dot(Qi, tl.trans(Kj)) * softmax_scale
+        Sij = tl.dot(Qi, tl.trans(Kj), input_precision="ieee") * softmax_scale
         mij = tl.max(Sij, axis=1)
         mi_new = tl.maximum(mi, mij)
 
@@ -80,7 +80,7 @@ def attention_triton(
 
         # update Oi
         Vj = tl.load(V_block_ptr, boundary_check=(0,), padding_option = "zero")
-        Oi = tl.exp(mi - mi_new)[:, None] * Oi + tl.dot(Pij, Vj)
+        Oi = tl.exp(mi - mi_new)[:, None] * Oi + tl.dot(Pij, Vj, input_precision="ieee")
 
 
         mi = tl.maximum(mi, mi_new)
@@ -104,7 +104,6 @@ def attention_triton(
 
 
 def attention_triton_launch(QKV):
-    QKV = QKV.to(torch.float32)
     Q_tensor, K_tensor, V_tensor = QKV.unbind(dim=2)
     Q_tensor_cont, K_tensor_cont, V_tensor_cont = Q_tensor.contiguous(), K_tensor.contiguous(), V_tensor.contiguous()
 
@@ -112,20 +111,19 @@ def attention_triton_launch(QKV):
     B_const, N_const, H_const, D_const = Q_tensor_cont.shape
     O_tensor = torch.zeros((B_const, N_const, H_const, D_const), dtype=QKV.dtype, device=QKV.device)
     L_tensor = torch.zeros((B_const, H_const, N_const), dtype=QKV.dtype, device=QKV.device)
-    M_tensor = torch.ones((B_const, H_const, N_const), dtype=QKV.dtype, device=QKV.device) * float("-inf")
 
     softmax_score = 1 / math.sqrt(D_const)
 
     B_stride, N_stride, H_stride, _ = Q_tensor_cont.stride()
-    lm_batch_stride, lm_heads_stride, _ = M_tensor.stride()
+    lm_batch_stride, lm_heads_stride, _ = L_tensor.stride()
     
     def grid(META):
         Tr = triton.cdiv(N_const, META['Br'])
         return (B_const, H_const, Tr)
     attention_triton[grid](
         Q_tensor_cont, K_tensor_cont, V_tensor_cont, 
-        O_tensor, L_tensor, M_tensor,
-        N_const, H_const, D_const, softmax_score,
+        O_tensor, L_tensor,
+        N_const, D_const, softmax_score,
         B_stride, N_stride, H_stride,
         lm_batch_stride, lm_heads_stride,
     )

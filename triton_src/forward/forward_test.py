@@ -1,5 +1,5 @@
 import torch
-from flash_forward_triton import attention_triton_launch
+from flash_forward_triton_fp32 import attention_triton_launch
 from samples.flash_forward_triton_ref import attention_triton_launch as attention_triton_launch_ref
 from forward_torch import naive_forward_aux
 

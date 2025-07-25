@@ -20,7 +20,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from flash_forward_triton import attention_triton_launch
+from flash_forward_triton_fp32 import attention_triton_launch
 from forward_torch import naive_forward_aux_wrapper
 
 def compare_outputs(O_naive, O_triton, L_naive, L_triton):
